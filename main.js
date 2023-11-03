@@ -6,10 +6,12 @@ const resultadosDiv = document.getElementById('resultados');
 const historialDiv = document.getElementById('historial');
 const eliminarUltimoBoton = document.getElementById('eliminar-ultimo');
 
-// iniciar estructuras de datos para almacenar por día y semana
+// Inicializar estructuras de datos para almacenar transacciones por día y semana
 const transaccionesPorDia = {};
 const transaccionesPorSemana = {};
-const transacciones = []; ciones
+
+// Cargar las transacciones desde el localStorage
+let transacciones = obtenerTransaccionesGuardadas();
 
 // Evento al enviar el formulario
 form.addEventListener('submit', (e) => {
@@ -21,19 +23,16 @@ form.addEventListener('submit', (e) => {
     const diaActual = fechaActual.toLocaleDateString(); // Obtener la fecha actual como un string (formato: MM/DD/YYYY)
     const semanaActual = obtenerSemanaDelAnio(fechaActual);
 
-    // Agregar transacción al arreglo
     if (descripcion && monto) {
+        // Agregar transacción al arreglo
         const transaccion = { descripcion, monto, fecha: fechaActual };
         transacciones.push(transaccion);
-
 
         agruparTransaccionPorDia(transaccion, diaActual);
         agruparTransaccionPorSemana(transaccion, semanaActual);
 
-
+        // Guardar las transacciones en el localStorage
         guardarTransacciones();
-        guardarTransaccionesEnJSON();
-
 
         actualizarResultados();
         mostrarHistorial();
@@ -64,26 +63,15 @@ function obtenerSemanaDelAnio(fecha) {
     return Math.ceil(diferencia / unaSemanaEnMillisegundos);
 }
 
-// Función para guardar transacciones en localStorage
+// Función para guardar transacciones en el localStorage
 function guardarTransacciones() {
     localStorage.setItem('transacciones', JSON.stringify(transacciones));
 }
 
-// Función para cargar transacciones desde localStorage al cargar la página
+// Función para cargar transacciones desde el localStorage al cargar la página
 function obtenerTransaccionesGuardadas() {
     const storedTransacciones = localStorage.getItem('transacciones');
     return storedTransacciones ? JSON.parse(storedTransacciones) : [];
-}
-
-// Función para guardar transacciones en un archivo JSON
-function guardarTransaccionesEnJSON() {
-    const transaccionesJSON = JSON.stringify(transacciones);
-    const blob = new Blob([transaccionesJSON], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'historial.json';
-    a.click();
 }
 
 // Función para actualizar los resultados en el DOM
@@ -111,7 +99,7 @@ function actualizarResultados() {
 function mostrarHistorial() {
     historialDiv.innerHTML = '';
 
-    //  días
+    // Iterar por días
     for (const dia in transaccionesPorDia) {
         historialDiv.innerHTML += `<h2>${dia}</h2>`;
         transaccionesPorDia[dia].forEach((transaccion) => {
@@ -120,7 +108,7 @@ function mostrarHistorial() {
         });
     }
 
-    // semanas
+    // Iterar por semanas
     for (const semana in transaccionesPorSemana) {
         historialDiv.innerHTML += `<h2>Semana ${semana}</h2>`;
         transaccionesPorSemana[semana].forEach((transaccion) => {
@@ -130,13 +118,12 @@ function mostrarHistorial() {
     }
 }
 
-// Evento "Eliminar ultimo Gasto"
+// Evento "Eliminar último Gasto"
 eliminarUltimoBoton.addEventListener('click', () => {
     if (transacciones.length > 0) {
         const transaccionEliminada = transacciones.pop();
         const diaDeTransaccion = transaccionEliminada.fecha.toLocaleDateString();
         const semanaDeTransaccion = obtenerSemanaDelAnio(transaccionEliminada.fecha);
-
 
         if (transaccionesPorDia[diaDeTransaccion]) {
             transaccionesPorDia[diaDeTransaccion].pop();
@@ -145,14 +132,14 @@ eliminarUltimoBoton.addEventListener('click', () => {
             transaccionesPorSemana[semanaDeTransaccion].pop();
         }
 
+        // Guardar las transacciones actualizadas en el localStorage
         guardarTransacciones();
-        guardarTransaccionesEnJSON();
+
         actualizarResultados();
         mostrarHistorial();
     }
 });
 
-
-
+// Cargar las transacciones iniciales al cargar la página
 actualizarResultados();
 mostrarHistorial();
