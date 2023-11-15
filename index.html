@@ -4,13 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Finanzas Personales</title>
+    <!-- LIBRERIA -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <!-- CSS -->
     <link rel="stylesheet" href="estilo.css">
 </head>
 <body>
     <h1>Mis Finanzas Personales</h1>
 
-    <button id="eliminar-ultimo">Eliminar Último Gasto</button>
+    <button class="boton" id="eliminar-ultimo">Eliminar Último Gasto</button>
+    <button class="boton" id="eliminar-historial">Vaciar historial</button>
 
     <div id="historial">
         <!-- El historial se mostrará aquí -->
@@ -29,6 +32,10 @@
 
         <div id="resultados"></div>
     </div>
+    <!-- LIBRERIAS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <!-- JS -->
     <script src="main.js"></script>
 </body>
 </html>

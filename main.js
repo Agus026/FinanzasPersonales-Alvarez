@@ -5,6 +5,7 @@ const montoInput = document.getElementById('monto');
 const resultadosDiv = document.getElementById('resultados');
 const historialDiv = document.getElementById('historial');
 const eliminarUltimoBoton = document.getElementById('eliminar-ultimo');
+const eliminarHistorialBoton = document.getElementById('eliminar-historial');
 
 // Inicializar estructuras de datos para almacenar transacciones por día y semana
 const transaccionesPorDia = {};
@@ -12,6 +13,10 @@ const transaccionesPorSemana = {};
 
 // Cargar las transacciones desde el localStorage
 let transacciones = obtenerTransaccionesGuardadas();
+
+// Variables para la suma total de ingresos y egresos
+let totalIngresos = 0;
+let totalEgresos = 0;
 
 // Evento al enviar el formulario
 form.addEventListener('submit', (e) => {
@@ -31,9 +36,17 @@ form.addEventListener('submit', (e) => {
         agruparTransaccionPorDia(transaccion, diaActual);
         agruparTransaccionPorSemana(transaccion, semanaActual);
 
+        // Actualizar la suma total de ingresos y egresos
+        if (monto > 0) {
+            totalIngresos += monto;
+        } else {
+            totalEgresos += Math.abs(monto);
+        }
+
         // Guardar las transacciones en el localStorage
         guardarTransacciones();
 
+        // Actualizar resultados y historial
         actualizarResultados();
         mostrarHistorial();
     }
@@ -99,25 +112,58 @@ function actualizarResultados() {
 function mostrarHistorial() {
     historialDiv.innerHTML = '';
 
-    // Iterar por días
+    // días
     for (const dia in transaccionesPorDia) {
-        historialDiv.innerHTML += `<h2>${dia}</h2>`;
+        historialDiv.innerHTML += `<h4>${dia}</h4>`;
         transaccionesPorDia[dia].forEach((transaccion) => {
             const tipo = transaccion.monto > 0 ? 'Ingreso' : 'Egreso';
             historialDiv.innerHTML += `<p>${tipo}: ${transaccion.descripcion} ($${transaccion.monto.toFixed(2)})</p>`;
         });
     }
 
-    // Iterar por semanas
+    // semanas
     for (const semana in transaccionesPorSemana) {
-        historialDiv.innerHTML += `<h2>Semana ${semana}</h2>`;
+        historialDiv.innerHTML += `<h4>Semana ${semana}</h4>`;
         transaccionesPorSemana[semana].forEach((transaccion) => {
             const tipo = transaccion.monto > 0 ? 'Ingreso' : 'Egreso';
             historialDiv.innerHTML += `<p>${tipo}: ${transaccion.descripcion} ($${transaccion.monto.toFixed(2)})</p>`;
         });
     }
 }
+// Evento "Eliminar historial"
+eliminarHistorialBoton.addEventListener('click', () => {
+    eliminarHistorial();
+});
+// Función para eliminar el historial completo
+function eliminarHistorial() {
+    Swal.fire({
+        title: "¿Estas seguro?",
+        icon: "question",
+        html: `Se eliminara todo el historial`,
+        showCancelButton: true,
+        focusConfirm: false,
+        confirmButtonText: `SI`,
+        cancelButtonText: `NO`,
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Limpiar el historial en el DOM
+            historialDiv.innerHTML = '';
 
+            // Limpiar el historial en las estructuras de datos
+            transacciones.length = 0;
+            for (const dia in transaccionesPorDia) {
+                delete transaccionesPorDia[dia];
+            }
+            for (const semana in transaccionesPorSemana) {
+                delete transaccionesPorSemana[semana];
+            }
+
+            // Guardar los cambios
+            guardarTodasLasTransacciones();
+            actualizarResultados();
+        }
+    });
+}
 // Evento "Eliminar último Gasto"
 eliminarUltimoBoton.addEventListener('click', () => {
     if (transacciones.length > 0) {
@@ -132,13 +178,73 @@ eliminarUltimoBoton.addEventListener('click', () => {
             transaccionesPorSemana[semanaDeTransaccion].pop();
         }
 
+        // Restar el monto de la transacción eliminada a la suma total de ingresos y egresos
+        if (transaccionEliminada.monto > 0) {
+            totalIngresos -= transaccionEliminada.monto;
+        } else {
+            totalEgresos -= Math.abs(transaccionEliminada.monto);
+        }
+
         // Guardar las transacciones actualizadas en el localStorage
         guardarTransacciones();
 
+        // Actualizar resultados y historial
         actualizarResultados();
         mostrarHistorial();
     }
 });
+
+// Evento "Eliminar historial"
+eliminarHistorialBoton.addEventListener('click', () => {
+    eliminarHistorial();
+});
+
+// Función para eliminar el historial completo
+function eliminarHistorial() {
+    Swal.fire({
+        title: "¿Estás seguro?",
+        icon: "question",
+        html: `Se eliminará todo el historial`,
+        showCancelButton: true,
+        focusConfirm: false,
+        confirmButtonText: `SI`,
+        cancelButtonText: `NO`,
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Limpiar el historial en el DOM
+            historialDiv.innerHTML = '';
+
+            // Limpiar el historial en las estructuras de datos
+            transacciones.length = 0;
+            for (const dia in transaccionesPorDia) {
+                delete transaccionesPorDia[dia];
+            }
+            for (const semana in transaccionesPorSemana) {
+                delete transaccionesPorSemana[semana];
+            }
+
+            // Reiniciar la suma total de ingresos y egresos
+            totalIngresos = 0;
+            totalEgresos = 0;
+
+            // Guardar los cambios
+            guardarTransacciones();
+
+            // Actualizar resultados
+            actualizarResultados();
+        }
+    });
+}
+// Función para guardar todas las transacciones en un archivo JSON
+function guardarTodasLasTransaccionesEnJSON() {
+    const transaccionesJSON = JSON.stringify(transacciones);
+    const blob = new Blob([transaccionesJSON], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'todas_las_transacciones.json';
+    a.click();
+}
 
 // Cargar las transacciones iniciales al cargar la página
 actualizarResultados();
