@@ -3,14 +3,30 @@ const form = document.getElementById('finanzas-form');
 const descripcionInput = document.getElementById('descripcion');
 const montoInput = document.getElementById('monto');
 const resultadosDiv = document.getElementById('resultados');
-const historialDiv = document.getElementById('historial');
+const historialDiv = document.getElementById('historialDiv');
 const eliminarUltimoBoton = document.getElementById('eliminar-ultimo');
 const eliminarHistorialBoton = document.getElementById('eliminar-historial');
 
-// Inicializar estructuras de datos para almacenar transacciones por día y semana
-const transaccionesPorDia = {};
-const transaccionesPorSemana = {};
+// Iniciar estructuras para almacenar transacciones por día y semana
+let transaccionesPorDia = {};
+let transaccionesPorSemana = {};
 
+// Función para agrupar transacción por día
+function agruparTransaccionPorDia(transaccion, dia) {
+    if (!transaccionesPorDia[dia]) {
+        transaccionesPorDia[dia] = [];
+    }
+
+    transaccionesPorDia[dia].push(transaccion);
+}
+// Función para agrupar transacción por semana
+function agruparTransaccionPorSemana(transaccion, semana) {
+    if (!transaccionesPorSemana[semana]) {
+        transaccionesPorSemana[semana] = [];
+    }
+
+    transaccionesPorSemana[semana].push(transaccion);
+}
 // Cargar las transacciones desde el localStorage
 let transacciones = obtenerTransaccionesGuardadas();
 
@@ -19,62 +35,105 @@ let totalIngresos = 0;
 let totalEgresos = 0;
 
 // Evento al enviar el formulario
-form.addEventListener('submit', (e) => {
+form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    Toastify({
+        text: "El gasto se agrego correctamente",
+        duration: 3000
+    }).showToast();
 
     const descripcion = descripcionInput.value;
     const monto = parseFloat(montoInput.value);
     const fechaActual = new Date();
-    const diaActual = fechaActual.toLocaleDateString(); // Obtener la fecha actual como un string (formato: MM/DD/YYYY)
+    const diaActual = fechaActual.toLocaleDateString();
     const semanaActual = obtenerSemanaDelAnio(fechaActual);
 
     if (descripcion && monto) {
-        // Agregar transacción al arreglo
         const transaccion = { descripcion, monto, fecha: fechaActual };
-        transacciones.push(transaccion);
 
-        agruparTransaccionPorDia(transaccion, diaActual);
-        agruparTransaccionPorSemana(transaccion, semanaActual);
+        try {
+            await enviarTransaccionAlServidor(transaccion);
 
-        // Actualizar la suma total de ingresos y egresos
-        if (monto > 0) {
-            totalIngresos += monto;
-        } else {
-            totalEgresos += Math.abs(monto);
+            transacciones.push(transaccion);
+
+            // Agrupar transacción por día y semana
+            agruparTransaccionPorDia(transaccion, diaActual);
+            agruparTransaccionPorSemana(transaccion, semanaActual);
+
+            actualizarSumasTotales();
+
+            actualizarResultados();
+            mostrarHistorial();
+        } catch (error) {
+            console.error('Error al enviar transacción al servidor:', error);
         }
-
-        // Guardar las transacciones en el localStorage
-        guardarTransacciones();
-
-        // Actualizar resultados y historial
-        actualizarResultados();
-        mostrarHistorial();
     }
 });
 
-// Función para agrupar una transacción por día
-function agruparTransaccionPorDia(transaccion, dia) {
-    if (!transaccionesPorDia[dia]) {
-        transaccionesPorDia[dia] = [];
-    }
-    transaccionesPorDia[dia].push(transaccion);
-}
+// Función para enviar transacción al servidor usando Fetch
+async function enviarTransaccionAlServidor(transaccion) {
+    try {
+        const response = await fetch('https://jsonplaceholder.typicode.com/posts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(transaccion),
+        });
 
-// Función para agrupar una transacción por semana
-function agruparTransaccionPorSemana(transaccion, semana) {
-    if (!transaccionesPorSemana[semana]) {
-        transaccionesPorSemana[semana] = [];
+        if (!response.ok) {
+            throw new Error(`Error al enviar la transacción al servidor: ${response.statusText}`);
+        }
+    } catch (error) {
+        throw new Error(`Error al enviar la transacción al servidor: ${error.message}`);
     }
-    transaccionesPorSemana[semana].push(transaccion);
 }
-
-// Función para obtener el número de semana del año
+// Para obtener la semana del año en milisegundos 
 function obtenerSemanaDelAnio(fecha) {
     const fechaInicio = new Date(fecha.getFullYear(), 0, 1);
-    const diferencia = fecha - fechaInicio;
-    const unaSemanaEnMillisegundos = 1000 * 60 * 60 * 24 * 7;
-    return Math.ceil(diferencia / unaSemanaEnMillisegundos);
+    const diff = fecha - fechaInicio;
+    const unaSemanaEnMillis = 604800000; // 7 días en milisegundos
+    return Math.ceil((diff + 1) / unaSemanaEnMillis);
 }
+
+
+// Función para reagrupar las transacciones por día y semana
+function reagruparTransacciones() {
+    transaccionesPorDia = {};
+    transaccionesPorSemana = {};
+
+    transacciones.forEach((transaccion) => {
+        const dia = transaccion.fecha.toLocaleDateString();
+        const semana = obtenerSemanaDelAnio(transaccion.fecha);
+
+        agruparTransaccionPorDia(transaccion, dia);
+        agruparTransaccionPorSemana(transaccion, semana);
+    });
+}
+
+// Función para actualizar las sumas totales
+function actualizarSumasTotales() {
+    totalIngresos = 0;
+    totalEgresos = 0;
+
+    transacciones.forEach((transaccion) => {
+        if (transaccion.monto > 0) {
+            totalIngresos += transaccion.monto;
+        } else {
+            totalEgresos += Math.abs(transaccion.monto);
+        }
+    });
+}
+// Evento Eliminar último Gasto
+eliminarUltimoBoton.addEventListener('click', () => {
+    Toastify({
+        text: "Se eliminó el ultimo gasto correctamente",
+        duration: 3000
+    }).showToast();
+    eliminarUltimaTransaccion();
+    mostrarHistorial();
+});
+
 
 // Función para guardar transacciones en el localStorage
 function guardarTransacciones() {
@@ -90,28 +149,48 @@ function obtenerTransaccionesGuardadas() {
 // Función para actualizar los resultados en el DOM
 function actualizarResultados() {
     resultadosDiv.innerHTML = '';
-
-    let totalIngresos = 0;
-    let totalEgresos = 0;
-
+    
+    let totalIngresosLocal = 0;
+    let totalEgresosLocal = 0;
+    
     transacciones.forEach((transaccion) => {
         if (transaccion.monto > 0) {
-            totalIngresos += transaccion.monto;
+            totalIngresosLocal += transaccion.monto;
         } else {
-            totalEgresos += Math.abs(transaccion.monto);
+            totalEgresosLocal += Math.abs(transaccion.monto);
         }
     });
-
+    
     resultadosDiv.innerHTML = `
-        <p>Total Ingresos: $${totalIngresos.toFixed(2)}</p>
-        <p>Total Egresos: $${totalEgresos.toFixed(2)}</p>
+    <p>Total Ingresos: $${totalIngresosLocal.toFixed(2)}</p>
+    <p>Total Egresos: $${totalEgresosLocal.toFixed(2)}</p>
     `;
 }
 
-// Función para mostrar el historial de transacciones
+// Función para cargar transacciones desde el servidor usando Fetch
+async function cargarTransaccionesDesdeServidor() {
+    try {
+        const response = await fetch('Localhost 3000');
+        const data = await response.json();
+
+        // Reemplazar las transacciones locales con los datos del servidor
+        transacciones = data;
+        
+        // Agrupar las transacciones por día y semana
+        reagruparTransacciones();
+        
+        // Actualizar resultados e historial
+        actualizarResultados();
+        mostrarHistorial();
+    } catch (error) {
+        console.error('Error al cargar transacciones desde el servidor:', error);
+    }
+}
+
+// Función mostrar el historial de transacciones
 function mostrarHistorial() {
     historialDiv.innerHTML = '';
-
+    
     // días
     for (const dia in transaccionesPorDia) {
         historialDiv.innerHTML += `<h4>${dia}</h4>`;
@@ -120,7 +199,7 @@ function mostrarHistorial() {
             historialDiv.innerHTML += `<p>${tipo}: ${transaccion.descripcion} ($${transaccion.monto.toFixed(2)})</p>`;
         });
     }
-
+    
     // semanas
     for (const semana in transaccionesPorSemana) {
         historialDiv.innerHTML += `<h4>Semana ${semana}</h4>`;
@@ -130,85 +209,55 @@ function mostrarHistorial() {
         });
     }
 }
-// Evento "Eliminar historial"
-eliminarHistorialBoton.addEventListener('click', () => {
-    eliminarHistorial();
-});
-// Función para eliminar el historial completo
-function eliminarHistorial() {
-    Swal.fire({
-        title: "¿Estas seguro?",
-        icon: "question",
-        html: `Se eliminara todo el historial`,
-        showCancelButton: true,
-        focusConfirm: false,
-        confirmButtonText: `SI`,
-        cancelButtonText: `NO`,
-    }).then((result) => {
-        if (result.isConfirmed) {
-            // Limpiar el historial en el DOM
-            historialDiv.innerHTML = '';
-
-            // Limpiar el historial en las estructuras de datos
-            transacciones.length = 0;
-            for (const dia in transaccionesPorDia) {
-                delete transaccionesPorDia[dia];
-            }
-            for (const semana in transaccionesPorSemana) {
-                delete transaccionesPorSemana[semana];
-            }
-
-            // Guardar los cambios
-            guardarTodasLasTransacciones();
-            actualizarResultados();
-        }
-    });
-}
-// Evento "Eliminar último Gasto"
-eliminarUltimoBoton.addEventListener('click', () => {
+// Función para eliminar la última transacción ingresada
+function eliminarUltimaTransaccion() {
     if (transacciones.length > 0) {
-        const transaccionEliminada = transacciones.pop();
-        const diaDeTransaccion = transaccionEliminada.fecha.toLocaleDateString();
-        const semanaDeTransaccion = obtenerSemanaDelAnio(transaccionEliminada.fecha);
+        const ultimaTransaccion = transacciones.pop();
 
-        if (transaccionesPorDia[diaDeTransaccion]) {
-            transaccionesPorDia[diaDeTransaccion].pop();
-        }
-        if (transaccionesPorSemana[semanaDeTransaccion]) {
-            transaccionesPorSemana[semanaDeTransaccion].pop();
-        }
+        // Restar el monto de la última transacción de las sumas totales
+        restarMontoDeSumasTotales(ultimaTransaccion);
 
-        // Restar el monto de la transacción eliminada a la suma total de ingresos y egresos
-        if (transaccionEliminada.monto > 0) {
-            totalIngresos -= transaccionEliminada.monto;
-        } else {
-            totalEgresos -= Math.abs(transaccionEliminada.monto);
-        }
-
-        // Guardar las transacciones actualizadas en el localStorage
+        // Actualizar resultados y mostrar historial
         guardarTransacciones();
-
-        // Actualizar resultados y historial
         actualizarResultados();
         mostrarHistorial();
+        // Eliminar la última transacción del DOM
+        eliminarUltimaTransaccionDelDOM();
     }
-});
+}
+function eliminarUltimaTransaccionDelDOM() {
+    // Obtener todos los párrafos dentro de historialDiv
+    const transaccionesDOM = historialDiv.querySelectorAll('p');
 
-// Evento "Eliminar historial"
+    // Verificar si hay transacciones a eliminar
+    if (transaccionesDOM.length > 0) {
+        // Seleccionar y eliminar el último párrafo (última transacción)
+        const ultimaTransaccionDOM = transaccionesDOM[transaccionesDOM.length - 1];
+        ultimaTransaccionDOM.remove();
+    }
+}
+// Función para restar el monto de la transacción eliminada de las sumas totales
+function restarMontoDeSumasTotales(transaccion) {
+    if (transaccion.monto > 0) {
+        totalIngresos -= transaccion.monto;
+    } else {
+        totalEgresos -= Math.abs(transaccion.monto);
+    }
+}
+// Evento Eliminar historial
 eliminarHistorialBoton.addEventListener('click', () => {
     eliminarHistorial();
 });
-
 // Función para eliminar el historial completo
 function eliminarHistorial() {
     Swal.fire({
-        title: "¿Estás seguro?",
-        icon: "question",
-        html: `Se eliminará todo el historial`,
+        title: '¿Estás seguro?',
+        icon: 'question',
+        html: 'Se eliminará todo el historial',
         showCancelButton: true,
         focusConfirm: false,
-        confirmButtonText: `SI`,
-        cancelButtonText: `NO`,
+        confirmButtonText: 'SI',
+        cancelButtonText: 'NO',
     }).then((result) => {
         if (result.isConfirmed) {
             // Limpiar el historial en el DOM
@@ -216,25 +265,35 @@ function eliminarHistorial() {
 
             // Limpiar el historial en las estructuras de datos
             transacciones.length = 0;
-            for (const dia in transaccionesPorDia) {
-                delete transaccionesPorDia[dia];
-            }
-            for (const semana in transaccionesPorSemana) {
-                delete transaccionesPorSemana[semana];
-            }
-
-            // Reiniciar la suma total de ingresos y egresos
-            totalIngresos = 0;
-            totalEgresos = 0;
-
-            // Guardar los cambios
-            guardarTransacciones();
-
-            // Actualizar resultados
-            actualizarResultados();
+            transaccionesPorDia = {};
+            transaccionesPorSemana = {};
         }
     });
+    // Guardar los cambios
+    guardarTransacciones();
+    actualizarResultados();
 }
+
+// Función para eliminar transacción en el servidor usando Fetch
+async function eliminarTransaccionEnServidor(transaccion) {
+    try {
+        const response = await fetch('https://jsonplaceholder.typicode.com/posts', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(transaccion),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error al eliminar la transacción en el servidor: ${response.statusText}`);
+        }
+    } catch (error) {
+        console.error('Error en eliminarTransaccionEnServidor:', error);
+        throw error;
+    }
+}
+
 // Función para guardar todas las transacciones en un archivo JSON
 function guardarTodasLasTransaccionesEnJSON() {
     const transaccionesJSON = JSON.stringify(transacciones);
